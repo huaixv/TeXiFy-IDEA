@@ -1,5 +1,6 @@
 package nl.hannahsten.texifyidea.editor.autocompile
 
+import com.intellij.compiler.server.BuildManager.ALLOW_AUTOMAKE
 import com.intellij.execution.ExecutionManager
 import com.intellij.execution.ExecutionTargetManager
 import com.intellij.execution.RunManager
@@ -16,14 +17,21 @@ import nl.hannahsten.texifyidea.run.latex.LatexRunConfiguration
  */
 object AutoCompileState {
 
-    /** Whether an autocompile is in progress. */
-    private var isCompiling = false
-
     /** Whether the document has changed since the last triggered autocompile. */
     private var hasChanged = false
 
     /** Needed to get the selected run config. */
     private var project: Project? = null
+
+    /** Whether there is a running process. */
+    private fun hasRunningProcess(project: Project): Boolean {
+        for (handler in ExecutionManager.getInstance(project).getRunningProcesses()) {
+            if (!handler.isProcessTerminated && !ALLOW_AUTOMAKE[handler, java.lang.Boolean.FALSE]) { // active process
+                return true
+            }
+        }
+        return false
+    }
 
     /**
      * Tell the state the document has been changed by the user.
@@ -33,7 +41,7 @@ object AutoCompileState {
         this.project = project
 
         // Remember that the document changed, so a compilation should be scheduled later
-        if (isCompiling) {
+        if (hasRunningProcess(project)) {
             hasChanged = true
         }
         else {
@@ -50,9 +58,6 @@ object AutoCompileState {
         if (hasChanged) {
             scheduleCompilation()
         }
-        else {
-            isCompiling = false
-        }
     }
 
     private fun scheduleCompilation() {
@@ -62,7 +67,6 @@ object AutoCompileState {
             return
         }
 
-        isCompiling = true
         hasChanged = false
 
         // Get run configuration selected in the combobox and run that one
